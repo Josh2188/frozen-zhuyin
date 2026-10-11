@@ -1636,8 +1636,10 @@ async function start(saved) {
   function animeFace(p, F) {
     const W = 2048, H = 1024, [c, g] = mkCanvas(W, H);
     g.fillStyle = F ? '#f8dccb' : '#efcfbb'; g.fillRect(0, 0, W, H);
-    const P = (xm, ym) => {
-      const yn = clamp(ym / p.h, -0.999, 0.999), th = Math.acos(yn);
+    let oy = 0; // vertical offset applied while drawing a feature group
+    const P = (xm, y0) => {
+      const ym = y0 + oy;
+      const yn = clamp(ym / (p.h * (ym < 0 ? p.lower || 1 : 1)), -0.999, 0.999), th = Math.acos(yn);
       let xn = xm / p.w; if (yn < 0) xn /= 1 - p.jaw * yn * yn;
       return [Math.acos(clamp(-xn / Math.sin(th), -1, 1)) / (2 * Math.PI) * W, th / Math.PI * H];
     };
@@ -1647,29 +1649,35 @@ async function start(saved) {
     const stroke = (pts, col, w) => { path(pts); g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round'; g.stroke(); };
     for (const s of [1, -1]) {
       const [bx, by] = P(0.037 * s, -0.021); const gr = g.createRadialGradient(bx, by, 0, bx, by, 46);
-      gr.addColorStop(0, `rgba(240,130,130,${F ? 0.32 : 0.12})`); gr.addColorStop(1, 'rgba(240,130,130,0)'); g.save(); g.translate(bx, by); g.scale(1, 0.55); g.translate(-bx, -by); g.fillStyle = gr; g.fillRect(bx - 50, by - 50, 100, 100); g.restore();
-      const ix = 0.0165 * s, ox = (F ? 0.0425 : 0.04) * s, cx = 0.029 * s, top = F ? 0.0115 : 0.008, bot = F ? -0.0075 : -0.005;
-      const upper = curve([ix, 0.0], [cx, top * 1.75], [ox, 0.0045]), lower = curve([ox, 0.0025], [cx, bot * 1.6], [ix, 0.0]);
+      gr.addColorStop(0, `rgba(240,130,130,${F ? 0.16 : 0.08})`); gr.addColorStop(1, 'rgba(240,130,130,0)'); g.save(); g.translate(bx, by); g.scale(1, 0.55); g.translate(-bx, -by); g.fillStyle = gr; g.fillRect(bx - 50, by - 50, 100, 100); g.restore();
+      // big anime eyes (as in the reference): tall dark iris almost filling the eye, large highlights, heavy upper lash line
+      oy = F ? -0.006 : 0;
+      const ix = (F ? 0.0112 : 0.0165) * s, ox = (F ? 0.049 : 0.04) * s, cx = (F ? 0.03 : 0.029) * s, top = F ? 0.0195 : 0.008, bot = F ? -0.0135 : -0.005;
+      const upper = curve([ix, 0.001], [cx, top * 1.75], [ox, 0.006]), lower = curve([ox, 0.003], [cx, bot * 1.7], [ix, 0.001]);
       path([...upper, ...lower], true); g.fillStyle = '#fcf9f5'; g.fill();
       g.save(); path([...upper, ...lower], true); g.clip();
-      const iry = F ? 0.0098 : 0.0072, [, iy0] = P(cx, 0.002 + iry), [, iy1] = P(cx, 0.002 - iry), [icx] = P(cx, 0.002);
+      const icy = F ? 0.0015 : 0.002, iry = F ? 0.0135 : 0.0072, [, iy0] = P(cx, icy + iry), [, iy1] = P(cx, icy - iry), [icx] = P(cx, icy);
       const ig = g.createLinearGradient(icx, iy0, icx, iy1);
-      ig.addColorStop(0, F ? '#2a140c' : '#1c120c'); ig.addColorStop(0.55, F ? '#6b3a22' : '#3a2416'); ig.addColorStop(1, F ? '#b8743e' : '#5a3a24');
-      path(ell(cx, 0.002, F ? 0.0069 : 0.0058, iry), true); g.fillStyle = ig; g.fill();
-      path(ell(cx, 0.0025, 0.0028, F ? 0.0045 : 0.0034), true); g.fillStyle = '#160a06'; g.fill();
-      path(curve([ix, 0.0], [cx, top * 1.75], [ox, 0.0045]).concat(curve([ox, 0.0005], [cx, top * 0.9], [ix, -0.002])), true); g.fillStyle = 'rgba(70,35,25,.28)'; g.fill();
-      path(ell(cx - 0.0022 * s, 0.0055, 0.0019, 0.0024), true); g.fillStyle = '#ffffff'; g.fill();
-      path(ell(cx + 0.0026 * s, -0.0025, 0.0009, 0.001), true); g.fill();
+      ig.addColorStop(0, F ? '#150a06' : '#1c120c'); ig.addColorStop(0.5, F ? '#43231a' : '#3a2416'); ig.addColorStop(1, F ? '#a9693e' : '#5a3a24');
+      path(ell(cx, icy, F ? 0.0104 : 0.0058, iry), true); g.fillStyle = ig; g.fill();
+      if (F) { path(ell(cx, icy - 0.0072, 0.0074, 0.0038), true); g.fillStyle = 'rgba(230,160,100,.35)'; g.fill(); }
+      path(ell(cx, icy + 0.001, F ? 0.0047 : 0.0028, F ? 0.0066 : 0.0034), true); g.fillStyle = '#120804'; g.fill();
+      path(upper.concat(curve([ox, 0.0035], [cx, top * 1.05], [ix, -0.001])), true); g.fillStyle = 'rgba(60,30,25,.3)'; g.fill();
+      path(ell(cx - 0.0034 * s, icy + 0.0068, F ? 0.0032 : 0.0019, F ? 0.0039 : 0.0024), true); g.fillStyle = '#ffffff'; g.fill();
+      path(ell(cx + 0.0038 * s, icy - 0.0052, F ? 0.0014 : 0.0009, F ? 0.0014 : 0.001), true); g.fill();
+      if (F) { path(ell(cx + 0.0012 * s, icy + 0.008, 0.0009, 0.0009), true); g.fill(); }
       g.restore();
-      stroke(upper, '#24130e', F ? 8 : 6);
-      if (F) stroke(curve([ox * 0.97, 0.0048], [ox * 1.05, 0.0075], [ox * 1.1, 0.0095], 4), '#24130e', 5);
-      stroke(lower.slice(0, 11), 'rgba(70,35,25,.55)', 2.5);
-      stroke(curve([ix * 1.2, 0.0065], [cx, top * 2.15], [ox * 0.94, 0.0095]), 'rgba(120,60,45,.45)', 2.5);
-      stroke(curve([0.0175 * s, 0.0235], [0.031 * s, F ? 0.0305 : 0.0295], [0.0445 * s, 0.0245]), F ? '#6a3a22' : '#2a1d16', F ? 5 : 9);
+      stroke(upper, '#1d0f0b', F ? 12 : 6);
+      if (F) stroke(curve([ox * 0.96, 0.0064], [ox * 1.05, 0.0098], [ox * 1.1, 0.0122], 4), '#1d0f0b', 7);
+      stroke(lower.slice(0, 9), 'rgba(60,30,25,.6)', F ? 3 : 2.5);
+      stroke(curve([ix * 1.3, 0.0095], [cx, top * 2.25], [ox * 0.93, 0.0128]), 'rgba(110,55,40,.4)', 2.5);
+      stroke(curve([0.016 * s, 0.031], [0.031 * s, F ? 0.037 : 0.0295], [0.046 * s, 0.032]), F ? '#6a3a22' : '#2a1d16', F ? 4 : 9);
+      oy = 0;
     }
-    stroke(curve([0.0016, -0.018], [0.0032, -0.0245], [0.0002, -0.0272], 6), 'rgba(175,105,85,.75)', 3);
-    stroke(curve([-0.0075, -0.0462], [0, F ? -0.0488 : -0.0472], [0.0075, -0.0462], 10), F ? '#a5534f' : '#8a4a40', 3.5);
-    if (F) stroke(curve([-0.0042, -0.0505], [0, -0.0517], [0.0042, -0.0505], 6), 'rgba(205,115,105,.5)', 3);
+    // small nose and mouth on a shorter lower face
+    stroke(curve([0.001, -0.021], [0.0022, -0.0252], [0.0002, -0.027], 6), 'rgba(175,105,85,.55)', 2.5);
+    stroke(curve([-0.005, -0.0402], [0, F ? -0.0416 : -0.0432], [0.005, -0.0402], 10), F ? '#a5534f' : '#8a4a40', 3);
+    if (F) stroke(curve([-0.003, -0.0436], [0, -0.0444], [0.003, -0.0436], 6), 'rgba(205,115,105,.45)', 2.5);
     return mkTex(c);
   }
   // anime hair texture: strands plus the glossy "angel ring" band around the crown
@@ -1693,7 +1701,7 @@ async function start(saved) {
   function deformHead(x, y, z, p, features) {
     let X = x * p.w, Y = y * p.h, Z = z * p.d;
     if (z < 0) Z *= 1.05 + 0.06 * Math.max(0, y);
-    if (y < 0) { const t = -y; X *= 1 - p.jaw * t * t; Z *= z > 0 ? 1 - 0.1 * t : 1 - 0.5 * t; }
+    if (y < 0) { const t = -y; X *= 1 - p.jaw * t * t; Z *= z > 0 ? 1 - 0.1 * t : 1 - 0.5 * t; Y *= p.lower || 1; }
     if (y > 0.55) X *= 1 - (y - 0.55) * 0.18;
     if (features && z > 0) {
       const gs = (cx, cy, sx, sy) => Math.exp(-(((X - cx) / sx) ** 2) - (((Y - cy) / sy) ** 2));
@@ -1758,7 +1766,7 @@ async function start(saved) {
       torso: [[-0.07, 0.132, 0.088, 0.09], [0.0, 0.126, 0.084, 0.086], [0.07, 0.132, 0.088, 0.09], [0.14, 0.143, 0.104, 0.095], [0.2, 0.149, 0.116, 0.098], [0.25, 0.153, 0.11, 0.1],
         [0.31, 0.164, 0.092, 0.097], [0.36, 0.171, 0.078, 0.085], [0.395, 0.134, 0.064, 0.07], [0.42, 0.075, 0.05, 0.055], [0.43, 0.05, 0.045, 0.05], [0.432, 0, 0, 0]],
       sh: [0.152, 0.35], deltoid: 0.05, legX: 0.08, headY: 0.562, headScale: 1.1, ankleH: 0.08, dr: 0,
-      head: { w: 0.073, h: 0.106, d: 0.094, jaw: 0.27, chin: 0.003, nose: 0.016 },
+      head: { w: 0.074, h: 0.106, d: 0.094, jaw: 0.34, chin: 0.003, nose: 0.016, lower: 0.86 },
     },
     m: {
       hipW: 0.15, hipB: 0.1, waist: 0.14,
@@ -1837,7 +1845,7 @@ async function start(saved) {
       hair = new THREE.Group(); head.add(hair);
       const HR = [[-0.62, 0.135, 0.0, 0.122], [-0.52, 0.152, 0.006, 0.13], [-0.42, 0.156, 0.012, 0.134], [-0.33, 0.155, 0.018, 0.135], [-0.25, 0.148, 0.026, 0.13], [-0.19, 0.136, 0.036, 0.124],
         [-0.14, 0.11, 0.046, 0.118], [-0.09, 0.094, 0.054, 0.115], [-0.04, 0.088, 0.06, 0.116], [0.0, 0.086, 0.066, 0.116], [0.05, 0.083, 0.072, 0.11]];
-      add(hair, ringBody(HR, 48, 1.0, Math.PI * 2 - 2.0), o.hairSheetMat);
+      add(hair, ringBody(HR, 48, 1.35, Math.PI * 2 - 2.7), o.hairSheetMat);
       const last = HR[0];
       for (let k = 0; k <= 14; k++) {
         const ph = 1.1 + (k / 14) * (Math.PI * 2 - 2.2), c = Math.cos(ph), s = Math.sin(ph);
@@ -1845,7 +1853,10 @@ async function start(saved) {
         add(hair, taperTube([P(-0.55, last[1] + 0.012, last[3] + 0.004), P(-0.62, last[1] + 0.002, last[3] + 0.002), P(-0.66 - rand() * 0.05, last[1] - 0.006, last[3] - 0.002)], 0.014, 0.002, 10, 6), o.hairTubeMat);
       }
       // side locks in front of the ears, down past the chin
-      for (const s of [1, -1]) add(hair, taperTube([[0.064 * s, 0.045, 0.04], [0.077 * s, -0.04, 0.05], [0.084 * s, -0.14, 0.06], [0.09 * s, -0.24, 0.092]], 0.024, 0.004, 24, 8), o.hairTubeMat);
+      // fuller side locks framing the face (a few strands each, not flat panels)
+      for (const s of [1, -1]) for (const [dx, dz, r] of [[0, 0, 0.022], [0.012, -0.018, 0.02], [-0.008, 0.012, 0.014]]) {
+        add(hair, taperTube([[(0.062 + dx * 0.4) * s, 0.05, 0.035 + dz * 0.4], [(0.074 + dx) * s, -0.03, 0.045 + dz], [(0.082 + dx) * s, -0.12, 0.05 + dz], [(0.088 + dx) * s, -0.2, 0.07 + dz]], r, 0.004, 24, 8), o.hairTubeMat);
+      }
     }
     // arms
     const UA = o.tee
