@@ -205,10 +205,11 @@ async function start(saved) {
         vec4 col = texture2D(tDiffuse, vUv);
         float c = lin(vUv);
         float l = lin(vUv - vec2(uTexel.x, 0.0)), r = lin(vUv + vec2(uTexel.x, 0.0)), d = lin(vUv - vec2(0.0, uTexel.y)), u = lin(vUv + vec2(0.0, uTexel.y));
-        float crease = smoothstep(0.01, 0.03, (abs(l + r - 2.0 * c) + abs(u + d - 2.0 * c)) / c);
-        float jump = smoothstep(0.04, 0.1, max(max(abs(l - c), abs(r - c)), max(abs(u - c), abs(d - c))) / c);
-        float edge = max(crease, jump) * (1.0 - smoothstep(16.0, 36.0, c));
-        col.rgb = mix(col.rgb, uInk * (0.2 + 0.25 * min(dot(col.rgb, vec3(0.3, 0.55, 0.15)), 1.0)), edge * 0.85);
+        float crease = smoothstep(0.015, 0.045, (abs(l + r - 2.0 * c) + abs(u + d - 2.0 * c)) / c);
+        float jump = smoothstep(0.06, 0.14, max(max(abs(l - c), abs(r - c)), max(abs(u - c), abs(d - c))) / c);
+        float edge = max(crease, jump) * (1.0 - smoothstep(12.0, 28.0, c));
+        // thin, light lines: darken the surface colour itself (grey on white, barely visible on dark surfaces)
+        col.rgb = mix(col.rgb, col.rgb * 0.42 + uInk * 0.04, edge * 0.6);
         gl_FragColor = col;
       }`,
     depthTest: false, depthWrite: false,
@@ -218,7 +219,7 @@ async function start(saved) {
     render(r, writeBuffer, readBuffer) {
       inkMat.uniforms.tDiffuse.value = readBuffer.texture;
       inkMat.uniforms.tDepth.value = readBuffer.depthTexture;
-      inkMat.uniforms.uTexel.value.set(1.6 / readBuffer.width, 1.6 / readBuffer.height);
+      inkMat.uniforms.uTexel.value.set(1.0 / readBuffer.width, 1.0 / readBuffer.height);
       r.setRenderTarget(this.renderToScreen ? null : writeBuffer); this.fsQuad.render(r);
     }
   }
@@ -1943,7 +1944,7 @@ async function start(saved) {
     hairTubeMat: toon(0xffffff, { map: hairTubeTex }),
     hairSheetMat: toon(0xffffff, { map: hairStrandTex, side: THREE.DoubleSide }),
   });
-  inkHull(woman, 0.0042, 0x2b1d18);
+  inkHull(woman, 0.0022, 0x6a4c42);
 
   // ---------- the vinyl umbrella
   function makeUmbrella() {
