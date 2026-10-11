@@ -1757,7 +1757,7 @@ async function start(saved) {
       hipW: 0.166, hipB: 0.118, waist: 0.13,
       torso: [[-0.07, 0.132, 0.088, 0.09], [0.0, 0.126, 0.084, 0.086], [0.07, 0.132, 0.088, 0.09], [0.14, 0.143, 0.104, 0.095], [0.2, 0.149, 0.116, 0.098], [0.25, 0.153, 0.11, 0.1],
         [0.31, 0.164, 0.092, 0.097], [0.36, 0.171, 0.078, 0.085], [0.395, 0.134, 0.064, 0.07], [0.42, 0.075, 0.05, 0.055], [0.43, 0.05, 0.045, 0.05], [0.432, 0, 0, 0]],
-      sh: [0.167, 0.352], deltoid: 0.05, legX: 0.088, headY: 0.548, ankleH: 0.08, dr: 0,
+      sh: [0.152, 0.35], deltoid: 0.05, legX: 0.08, headY: 0.562, headScale: 1.1, ankleH: 0.08, dr: 0,
       head: { w: 0.073, h: 0.106, d: 0.094, jaw: 0.27, chin: 0.003, nose: 0.016 },
     },
     m: {
@@ -1803,8 +1803,9 @@ async function start(saved) {
     }
     // torso: tucked shirt, or a relaxed T-shirt that hangs over the hips
     const spine = new THREE.Group(); spine.position.y = 0.1; pelvis.add(spine);
-    const TEE = [[-0.21, B.hipW + 0.01, 0.104, B.hipB + 0.008], [-0.14, B.hipW + 0.008, 0.102, B.hipB + 0.006], [-0.06, 0.158, 0.097, 0.11], [0.02, 0.146, 0.094, 0.097], [0.1, 0.147, 0.099, 0.097],
-      [0.16, 0.152, 0.108, 0.1], [0.21, 0.157, 0.116, 0.102], [0.26, 0.16, 0.112, 0.104], [0.31, 0.169, 0.096, 0.1], [0.36, 0.176, 0.082, 0.088], [0.395, 0.138, 0.067, 0.073], [0.42, 0.078, 0.053, 0.058], [0.43, 0.056, 0.05, 0.054], [0.432, 0, 0, 0]];
+    // oversized T-shirt: boxy, hangs straight from narrow sloped shoulders down past the hips
+    const TEE = [[-0.24, 0.176, 0.112, 0.118], [-0.14, 0.177, 0.112, 0.118], [-0.02, 0.176, 0.11, 0.114], [0.1, 0.175, 0.11, 0.11], [0.2, 0.175, 0.112, 0.108],
+      [0.28, 0.172, 0.104, 0.104], [0.33, 0.164, 0.092, 0.094], [0.37, 0.142, 0.076, 0.08], [0.4, 0.104, 0.062, 0.066], [0.42, 0.066, 0.052, 0.056], [0.43, 0.054, 0.049, 0.052], [0.432, 0, 0, 0]];
     const TOR = o.tee ? TEE : B.torso;
     add(spine, ringBody(TOR, 36), o.shirt);
     if (o.tee) add(spine, ringBody([[0.408, 0.066, 0.06, 0.066], [0.43, 0.06, 0.054, 0.06]], 28), o.rib);
@@ -1820,7 +1821,7 @@ async function start(saved) {
     }
     add(spine, ringBody(tubeRings([[0.36, 0.053], [0.42, 0.049], [0.48, 0.047], [0.52, 0.043], [0.525, 0]]), 20), o.skin);
     // head
-    const head = new THREE.Group(); head.position.y = B.headY; spine.add(head);
+    const head = new THREE.Group(); head.position.y = B.headY; head.scale.setScalar(B.headScale || 1); spine.add(head);
     // anime head: smooth shape, features painted in the face texture
     const hg = headGeometry(B.head, false);
     add(head, hg, toon(0xffffff, { map: animeFace(B.head, F) })).userData.noInk = false;
@@ -1829,13 +1830,13 @@ async function start(saved) {
     const line = F
       ? (x, z) => { if (z > 0.25) return 0.25 + 0.075 * Math.abs(Math.sin(Math.atan2(x, z) * 9)) + 0.12 * Math.abs(x); return z > -0.2 ? lerp(-0.35, 0.25, smooth((z + 0.2) / 0.45)) : -0.72; }
       : (x, z) => (z > 0 ? lerp(-0.12, 0.42 - 0.15 * Math.abs(x), smooth(z / 0.55)) : lerp(-0.12, -0.55, smooth(-z / 0.65)));
-    add(head, hairShell(B.head, F ? 1.075 : 1.09, line, F ? 0.05 : 0.14), o.hairMat);
+    add(head, hairShell(B.head, F ? 1.1 : 1.09, line, F ? 0.05 : 0.14), o.hairMat);
     let hair = null;
     if (F) {
       // waist-length straight hair down the back; its own group so it can stream back when she runs
       hair = new THREE.Group(); head.add(hair);
-      const HR = [[-0.62, 0.118, 0.0, 0.112], [-0.52, 0.134, 0.006, 0.12], [-0.42, 0.138, 0.012, 0.125], [-0.33, 0.137, 0.018, 0.126], [-0.25, 0.131, 0.026, 0.122], [-0.19, 0.121, 0.036, 0.117],
-        [-0.14, 0.101, 0.046, 0.113], [-0.09, 0.089, 0.054, 0.111], [-0.04, 0.085, 0.06, 0.113], [0.0, 0.084, 0.066, 0.114], [0.05, 0.081, 0.072, 0.109]];
+      const HR = [[-0.62, 0.135, 0.0, 0.122], [-0.52, 0.152, 0.006, 0.13], [-0.42, 0.156, 0.012, 0.134], [-0.33, 0.155, 0.018, 0.135], [-0.25, 0.148, 0.026, 0.13], [-0.19, 0.136, 0.036, 0.124],
+        [-0.14, 0.11, 0.046, 0.118], [-0.09, 0.094, 0.054, 0.115], [-0.04, 0.088, 0.06, 0.116], [0.0, 0.086, 0.066, 0.116], [0.05, 0.083, 0.072, 0.11]];
       add(hair, ringBody(HR, 48, 1.0, Math.PI * 2 - 2.0), o.hairSheetMat);
       const last = HR[0];
       for (let k = 0; k <= 14; k++) {
@@ -1844,31 +1845,35 @@ async function start(saved) {
         add(hair, taperTube([P(-0.55, last[1] + 0.012, last[3] + 0.004), P(-0.62, last[1] + 0.002, last[3] + 0.002), P(-0.66 - rand() * 0.05, last[1] - 0.006, last[3] - 0.002)], 0.014, 0.002, 10, 6), o.hairTubeMat);
       }
       // side locks in front of the ears, down past the chin
-      for (const s of [1, -1]) add(hair, taperTube([[0.064 * s, 0.045, 0.04], [0.077 * s, -0.04, 0.05], [0.084 * s, -0.14, 0.06], [0.09 * s, -0.24, 0.092]], 0.02, 0.003, 24, 8), o.hairTubeMat);
+      for (const s of [1, -1]) add(hair, taperTube([[0.064 * s, 0.045, 0.04], [0.077 * s, -0.04, 0.05], [0.084 * s, -0.14, 0.06], [0.09 * s, -0.24, 0.092]], 0.024, 0.004, 24, 8), o.hairTubeMat);
     }
     // arms
-    const UA = [[-0.305, 0], [-0.3, 0.034 + dr], [-0.27, 0.037 + dr], [-0.18, 0.041 + dr], [-0.08, 0.044 + dr], [0.0, 0.046 + dr], [0.022, 0.042 + dr], [0.038, 0.028], [0.046, 0]];
+    const UA = o.tee
+      ? [[-0.305, 0], [-0.3, 0.029], [-0.27, 0.031], [-0.18, 0.034], [-0.08, 0.036], [0.0, 0.037], [0.022, 0.034], [0.038, 0.023], [0.046, 0]]
+      : [[-0.305, 0], [-0.3, 0.034 + dr], [-0.27, 0.037 + dr], [-0.18, 0.041 + dr], [-0.08, 0.044 + dr], [0.0, 0.046 + dr], [0.022, 0.042 + dr], [0.038, 0.028], [0.046, 0]];
     const FA = o.tee
-      ? [[-0.255, 0], [-0.25, 0.026], [-0.22, 0.028], [-0.12, 0.034], [-0.04, 0.036], [0.0, 0.032], [0.022, 0.025], [0.04, 0]]
+      ? [[-0.255, 0], [-0.25, 0.022], [-0.22, 0.024], [-0.12, 0.029], [-0.04, 0.031], [0.0, 0.028], [0.022, 0.021], [0.04, 0]]
       : [[-0.255, 0], [-0.25, 0.033 + dr], [-0.235, 0.035 + dr], [-0.215, 0.035 + dr], [-0.205, 0.032 + dr], [-0.12, 0.036 + dr], [-0.03, 0.04 + dr], [0.02, 0.038 + dr], [0.03, 0]];
     const armMat = o.tee ? o.skin : o.sleeve;
     function arm(side) {
       const sh = new THREE.Group(); sh.position.set(B.sh[0] * side, B.sh[1], -0.005); spine.add(sh);
       add(sh, ringBody(tubeRings(UA), 18), armMat);
-      if (o.tee) add(sh, ringBody(tubeRings([[-0.22, 0.064], [-0.12, 0.066], [0.0, 0.067], [0.03, 0.058], [0.05, 0]]), 20), o.sleeve);
+      // wide, loose short sleeve down to just above the elbow
+      if (o.tee) add(sh, ringBody(tubeRings([[-0.21, 0.07], [-0.12, 0.066], [-0.03, 0.062], [0.02, 0.055], [0.045, 0]]), 22), o.sleeve);
       const el = new THREE.Group(); el.position.y = -0.29; sh.add(el);
-      add(el, new THREE.SphereGeometry(o.tee ? 0.03 : 0.039 + dr, 14, 10), armMat);
+      add(el, new THREE.SphereGeometry(o.tee ? 0.027 : 0.039 + dr, 14, 10), armMat);
       add(el, ringBody(tubeRings(FA), 18), armMat);
       const hand = new THREE.Group(); hand.position.y = -0.25; el.add(hand);
       add(hand, ringBody(tubeRings([[-0.03, 0.025], [0.0, 0.026], [0.02, 0.027]]), 14), o.skin);
-      const handMesh = add(hand, ringBody(HAND, 18), o.skin); handMesh.scale.set(1 + dr * 8, 1 + dr * 6, 1 + dr * 6);
+      const hs = o.tee ? 0.9 : 1;
+      const handMesh = add(hand, ringBody(HAND, 18), o.skin); handMesh.scale.set((1 + dr * 8) * hs, (1 + dr * 6) * hs, (1 + dr * 6) * hs);
       add(hand, new THREE.CapsuleGeometry(0.0095, 0.035, 4, 8), o.skin, 0, -0.05, 0.03).rotation.x = -0.45;
       if (o.watch && side === 1) {
         add(hand, ringBody(tubeRings([[-0.012, 0.03], [0.006, 0.03]]), 16), o.watch);
         add(hand, new THREE.CylinderGeometry(0.012, 0.012, 0.006, 16), MAT.metalLight, 0.03, -0.003, 0).rotation.z = Math.PI / 2;
       }
       const grip = new THREE.Group(); grip.position.set(0, -0.075, 0.008); hand.add(grip);
-      return { sh, el, hand, grip, handMesh, fist: (k) => { handMesh.scale.y = (1 + dr * 6) * (1 - 0.4 * k); handMesh.scale.x = (1 + dr * 8) * (1 + 0.6 * k); } };
+      return { sh, el, hand, grip, handMesh, fist: (k) => { handMesh.scale.y = (1 + dr * 6) * hs * (1 - 0.4 * k); handMesh.scale.x = (1 + dr * 8) * hs * (1 + 0.6 * k); } };
     }
     // legs
     const TH = [[-0.43, 0], [-0.425, 0.052 + dr], [-0.39, 0.057 + dr], [-0.3, 0.065 + dr], [-0.18, 0.074 + dr], [-0.07, 0.082 + dr], [0.0, 0.085 + dr], [0.04, 0.07], [0.06, 0]];
@@ -1876,8 +1881,8 @@ async function start(saved) {
       : [[-0.385, 0.054], [-0.3, 0.055], [-0.2, 0.058], [-0.1, 0.06], [-0.02, 0.06], [0.03, 0.056], [0.05, 0]];
     // bare legs under shorts: thigh / calf in skin, shorts as an open tube over the thigh
     // thigh stays outside the calf where they overlap at the knee (no coplanar surfaces → no z-fighting)
-    const THS = [[-0.432, 0], [-0.426, 0.044], [-0.4, 0.05], [-0.3, 0.057], [-0.18, 0.067], [-0.07, 0.076], [0.0, 0.08], [0.04, 0.066], [0.06, 0]];
-    const CALF = [[-0.4, 0.028], [-0.36, 0.03], [-0.3, 0.036], [-0.2, 0.047], [-0.11, 0.05], [-0.04, 0.045], [0.0, 0.041], [0.025, 0.032], [0.045, 0]];
+    const THS = [[-0.432, 0], [-0.426, 0.04], [-0.4, 0.045], [-0.3, 0.051], [-0.18, 0.06], [-0.07, 0.068], [0.0, 0.072], [0.04, 0.06], [0.06, 0]];
+    const CALF = [[-0.4, 0.025], [-0.36, 0.027], [-0.3, 0.032], [-0.2, 0.042], [-0.11, 0.044], [-0.04, 0.04], [0.0, 0.037], [0.025, 0.029], [0.045, 0]];
     const FOOT = [[-0.06, 0, 0, 0], [-0.057, 0.022, 0.006, 0.024], [-0.035, 0.025, 0.006, 0.035], [0.0, 0.027, 0.006, 0.03], [0.05, 0.03, 0.006, 0.02], [0.1, 0.032, 0.005, 0.013], [0.14, 0.028, 0.005, 0.009], [0.162, 0.018, 0.004, 0.006], [0.172, 0, 0, 0]];
     function leg(side) {
       const hip = new THREE.Group(); hip.position.set(B.legX * side, -0.04, 0); pelvis.add(hip);
@@ -1885,8 +1890,8 @@ async function start(saved) {
       const ankle = new THREE.Group(); ankle.position.y = -SL; knee.add(ankle);
       if (o.shorts) {
         add(hip, ringBody(tubeRings(THS), 22), o.skin);
-        add(hip, ringBody(tubeRings([[-0.27, 0.088], [-0.2, 0.09], [-0.1, 0.092], [0.0, 0.094], [0.04, 0.09], [0.06, 0]]), 24), o.pants);
-        add(knee, new THREE.SphereGeometry(0.041, 16, 12), o.skin);
+        add(hip, ringBody(tubeRings([[-0.2, 0.088], [-0.14, 0.085], [-0.07, 0.083], [0.0, 0.085], [0.04, 0.08], [0.06, 0]]), 24), o.pants);
+        add(knee, new THREE.SphereGeometry(0.037, 16, 12), o.skin);
         add(knee, ringBody(tubeRings(CALF), 22), o.skin);
       } else {
         add(hip, ringBody(tubeRings(TH), 22), o.pants);
@@ -2404,14 +2409,14 @@ async function start(saved) {
     // left arm
     const hold = S.holding;
     cup.visible = hold === 'coffee'; can.visible = hold === 'can';
-    if (hold) { girl.armL.sh.rotation.x = -0.3; girl.armL.el.rotation.x = -1.1; girl.armL.sh.rotation.z = 0.14; }
-    else { girl.armL.sh.rotation.x = (0.32 + 0.4 * run) * sw; girl.armL.el.rotation.x = -0.16 - 0.22 * amt * Math.max(0, -Math.sin(S.phase)) - 1.15 * run; girl.armL.sh.rotation.z = 0.13 + 0.05 * run; }
+    if (hold) { girl.armL.sh.rotation.x = -0.3; girl.armL.el.rotation.x = -1.1; girl.armL.sh.rotation.z = 0.2; }
+    else { girl.armL.sh.rotation.x = (0.32 + 0.4 * run) * sw; girl.armL.el.rotation.x = -0.16 - 0.22 * amt * Math.max(0, -Math.sin(S.phase)) - 1.15 * run; girl.armL.sh.rotation.z = 0.2 + 0.04 * run; }
     // right arm + umbrella (tipped forward into the rain while running)
     girl.armR.fist(1); girl.armL.fist(hold ? 1 : 0.3 + 0.5 * run);
     const r = smooth(S.raise);
     girl.armR.sh.rotation.x = lerp(-0.32 * sw, -0.2 - 0.12 * run + 0.06 * run * Math.sin(2 * S.phase), r);
     girl.armR.el.rotation.x = lerp(-0.2, -2.1, r);
-    girl.armR.sh.rotation.z = lerp(-0.13, -0.08, r);
+    girl.armR.sh.rotation.z = lerp(-0.2, -0.08, r);
     qArm.copy(girl.armR.sh.quaternion).multiply(girl.armR.el.quaternion).invert();
     qTmp.copy(qDown).slerp(qRun.copy(qUp).slerp(qUpRun, run), r);
     umb.g.quaternion.copy(qArm).multiply(qTmp);
