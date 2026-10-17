@@ -121,7 +121,8 @@ body { font-family: var(--f-ui); -webkit-font-smoothing: antialiased; touch-acti
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.min.js"
 } }
 </script>
 <script type="module">
@@ -132,6 +133,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -2038,6 +2041,23 @@ async function start(saved) {
   can.position.set(0, 0.01, 0.012); can.visible = false;
   girl.armL.grip.add(cup, can);
   [cup, can].forEach((o) => o.traverse((m) => { m.userData.nopick = true; m.castShadow = true; }));
+
+  // ---------- VRM avatar: pixiv's sample model (VRM Public License 1.0, (c) 2022 pixiv Inc.).
+  // The procedural body above stays as the motion source and as a fallback if the model can't load.
+  let avatar = null;
+  const loader = new GLTFLoader(); loader.register((p) => new VRMLoaderPlugin(p));
+  loader.loadAsync('models/konbini-girl.vrm').then((gltf) => {
+    const vrm = gltf.userData.vrm;
+    vrm.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.userData.nopick = true; } });
+    girl.root.add(vrm.scene);
+    girl.meshes.forEach((m) => { m.visible = false; });
+    for (const o of [umb.g, cup, can]) { o.removeFromParent(); girl.root.add(o); o.quaternion.identity(); }
+    const N = (n) => vrm.humanoid.getNormalizedBoneNode(n);
+    vrm.scene.updateMatrixWorld(true);
+    const wp = (n) => N(n).getWorldPosition(new THREE.Vector3());
+    if (vrm.lookAt) vrm.lookAt.target = camera;
+    avatar = { vrm, N, hipsY: N('hips').position.y, thigh: wp('leftUpperLeg').distanceTo(wp('leftLowerLeg')), shin: wp('leftLowerLeg').distanceTo(wp('leftFoot')), blinkT: 2.5, blink: 0 };
+  }).catch((e) => console.warn('VRM avatar unavailable, keeping the built-in figure', e));
   const blob = (() => { const [c, g] = mkCanvas(64, 64); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,.4)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return mkTex(c); })();
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), new THREE.MeshBasicMaterial({ map: blob, transparent: true, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.renderOrder = 2; shadow.userData.nopick = true; scene.add(shadow);
@@ -2430,7 +2450,7 @@ async function start(saved) {
     girl.armR.sh.rotation.z = lerp(-0.2, -0.08, r);
     qArm.copy(girl.armR.sh.quaternion).multiply(girl.armR.el.quaternion).invert();
     qTmp.copy(qDown).slerp(qRun.copy(qUp).slerp(qUpRun, run), r);
-    umb.g.quaternion.copy(qArm).multiply(qTmp);
+    if (avatar) umb.g.quaternion.copy(qTmp); else umb.g.quaternion.copy(qArm).multiply(qTmp);
     // footsteps
     const c = Math.cos(S.phase);
     if (amt > 0.2 && Math.sign(c) !== Math.sign(S.lastCos)) {
@@ -2460,6 +2480,62 @@ async function start(saved) {
       } else S.dripT = 0.2;
     }
     if (hold === 'coffee' && rand() < dt * 3) { cup.getWorldPosition(tipW); tipW.y += 0.08; emitPuff(tipW, S.inside ? 0.45 : 0.8); }
+  }
+
+  // copy the procedural rig's joint angles onto the VRM's normalized bones (VRM rest pose is a T-pose, so arms get a
+  // fixed "arm down" rotation and the rig's arm rotations are conjugated into that frame)
+  const ZAX = new THREE.Vector3(0, 0, 1);
+  const qDownL = new THREE.Quaternion().setFromAxisAngle(ZAX, -Math.PI / 2), qDownR = new THREE.Quaternion().setFromAxisAngle(ZAX, Math.PI / 2);
+  const qDownLi = qDownL.clone().invert(), qDownRi = qDownR.clone().invert(), qHead = new THREE.Quaternion(), qId = new THREE.Quaternion();
+  const vA = new THREE.Vector3(), vB = new THREE.Vector3();
+  const FINGERS = ['Index', 'Middle', 'Ring', 'Little'], SEGS = ['Proximal', 'Intermediate', 'Distal'];
+  function driveAvatar(dt) {
+    if (!avatar) return;
+    const { vrm, N } = avatar;
+    // same knee/hip angles as the rig, but the pelvis height uses the avatar's own leg lengths
+    let lenR = 0, lenV = 0;
+    for (const L of girl.legs) {
+      const th = L.hip.rotation.x, kn = L.knee.rotation.x;
+      lenR = Math.max(lenR, TL * Math.cos(th) + SL * Math.cos(th + kn));
+      lenV = Math.max(lenV, avatar.thigh * Math.cos(th) + avatar.shin * Math.cos(th + kn));
+    }
+    const bump = girl.pelvis.position.y - (lenR + girl.ankleH + 0.04);
+    N('hips').position.y = avatar.hipsY - (avatar.thigh + avatar.shin - lenV) + bump;
+    N('hips').quaternion.copy(girl.pelvis.quaternion);
+    N('spine').quaternion.copy(girl.spine.quaternion);
+    qHead.copy(girl.head.quaternion);
+    N('neck').quaternion.copy(qId).slerp(qHead, 0.35);
+    N('head').quaternion.copy(qId).slerp(qHead, 0.65);
+    [['left', 0], ['right', 1]].forEach(([s, i]) => {
+      const L = girl.legs[i];
+      N(s + 'UpperLeg').quaternion.copy(L.hip.quaternion);
+      N(s + 'LowerLeg').quaternion.copy(L.knee.quaternion);
+      N(s + 'Foot').quaternion.copy(L.ankle.quaternion);
+    });
+    for (const [s, A, qd, qdi, sgn, k] of [['left', girl.armL, qDownL, qDownLi, -1, S.holding ? 1.1 : 0.3], ['right', girl.armR, qDownR, qDownRi, 1, 1.1]]) {
+      N(s + 'UpperArm').quaternion.copy(A.sh.quaternion).multiply(qd);
+      N(s + 'LowerArm').quaternion.copy(qdi).multiply(A.el.quaternion).multiply(qd);
+      N(s + 'Hand').quaternion.copy(qdi).multiply(A.hand.quaternion).multiply(qd);
+      for (const f of FINGERS) for (const seg of SEGS) { const b = N(s + f + seg); if (b) b.rotation.set(0, 0, sgn * k * (seg === 'Proximal' ? 0.8 : 1.0)); }
+      const th = N(s + 'ThumbProximal'); if (th) th.rotation.set(0, -sgn * 0.4 * k, 0);
+    }
+    // blink every few seconds, soft resting smile
+    const em = vrm.expressionManager;
+    if (em) {
+      avatar.blinkT -= dt;
+      if (avatar.blinkT < 0) { avatar.blink += dt; if (avatar.blink > 0.16) { avatar.blink = 0; avatar.blinkT = R(2.2, 5); } }
+      em.setValue('blink', avatar.blink > 0 ? Math.sin((avatar.blink / 0.16) * Math.PI) : 0);
+      em.setValue('relaxed', 0.25);
+    }
+    vrm.update(dt);
+    // umbrella and drinks sit in the avatar's hands
+    girl.root.updateMatrixWorld(true);
+    const place = (s, obj) => {
+      N(s + 'Hand').getWorldPosition(vA); N(s + 'LowerArm').getWorldPosition(vB);
+      vB.subVectors(vA, vB).normalize().multiplyScalar(0.07).add(vA);
+      obj.position.copy(girl.root.worldToLocal(vB));
+    };
+    place('right', umb.g); place('left', cup); place('left', can);
   }
 
   function updateDoor(dt) {
@@ -2577,7 +2653,7 @@ async function start(saved) {
     clock += dt;
     rainUniforms.uTime.value = clock;
     refl.material.uniforms.uTime.value = clock;
-    updateGirl(dt); updateDoor(dt); updateShop(dt); updateCar(dt); updateCamera(dt); updateFx(dt);
+    updateGirl(dt); driveAvatar(dt); updateDoor(dt); updateShop(dt); updateCar(dt); updateCamera(dt); updateFx(dt);
   }
   let last = performance.now(), firstFrame = true, slowAcc = 0, slowN = 0;
   function adapt(rawDt) {
