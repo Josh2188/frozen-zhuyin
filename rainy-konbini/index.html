@@ -2046,7 +2046,19 @@ async function start(saved) {
   // The procedural body above stays as the motion source and as a fallback if the model can't load.
   let avatar = null;
   const loader = new GLTFLoader(); loader.register((p) => new VRMLoaderPlugin(p));
-  loader.loadAsync('models/konbini-girl.vrm').then((gltf) => {
+  // the .vrm is served directly on GitHub Pages; hosts that won't serve .vrm get a base64 text copy instead
+  async function avatarBuffer() {
+    try {
+      const r = await fetch('models/konbini-girl.vrm');
+      if (r.ok) { const b = await r.arrayBuffer(); if (b.byteLength > 4 && new TextDecoder().decode(new Uint8Array(b, 0, 4)) === 'glTF') return b; }
+    } catch (e) { /* fall through to the text copy */ }
+    const r = await fetch('models/konbini-girl.vrm.b64.txt');
+    if (!r.ok) throw new Error('character model not found');
+    const bin = atob((await r.text()).trim()), u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return u.buffer;
+  }
+  avatarBuffer().then((buf) => loader.parseAsync(buf, '')).then((gltf) => {
     const vrm = gltf.userData.vrm;
     vrm.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; o.userData.nopick = true; } });
     girl.root.add(vrm.scene);
