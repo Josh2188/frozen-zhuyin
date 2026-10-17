@@ -2068,7 +2068,16 @@ async function start(saved) {
     vrm.scene.updateMatrixWorld(true);
     const wp = (n) => N(n).getWorldPosition(new THREE.Vector3());
     if (vrm.lookAt) vrm.lookAt.target = camera;
-    avatar = { vrm, N, hipsY: N('hips').position.y, thigh: wp('leftUpperLeg').distanceTo(wp('leftLowerLeg')), shin: wp('leftLowerLeg').distanceTo(wp('leftFoot')), blinkT: 2.5, blink: 0 };
+    // the model's springs are tuned for standing still: in world space a 3 m/s run leaves the hair streaming
+    // straight back. Simulate them relative to her body instead and add back a gentle speed-based breeze.
+    const springs = vrm.springBoneManager ? [...vrm.springBoneManager.joints].map((j) => {
+      j.center = girl.root;
+      return { j, g: j.settings.gravityPower, dir: j.settings.gravityDir.clone(), wind: /hair/i.test(j.bone.name) ? 0.045 : 0.02 };
+    }) : [];
+    girl.root.updateMatrixWorld(true);
+    if (vrm.springBoneManager) vrm.springBoneManager.reset();
+    avatar = { vrm, N, hipsY: N('hips').position.y, thigh: wp('leftUpperLeg').distanceTo(wp('leftLowerLeg')), shin: wp('leftLowerLeg').distanceTo(wp('leftFoot')), blinkT: 2.5, blink: 0,
+      springs, vel: new THREE.Vector3(), lastPos: girl.root.position.clone(), acc: 0 };
   }).catch((e) => console.warn('VRM avatar unavailable, keeping the built-in figure', e));
   const blob = (() => { const [c, g] = mkCanvas(64, 64); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(0,0,0,.4)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return mkTex(c); })();
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6), new THREE.MeshBasicMaterial({ map: blob, transparent: true, depthWrite: false }));
@@ -2539,7 +2548,23 @@ async function start(saved) {
       em.setValue('blink', avatar.blink > 0 ? Math.sin((avatar.blink / 0.16) * Math.PI) : 0);
       em.setValue('relaxed', 0.25);
     }
-    vrm.update(dt);
+    // breeze against her (smoothed) walking velocity, folded into each spring's gravity
+    vA.subVectors(girl.root.position, avatar.lastPos).divideScalar(Math.max(dt, 1e-3));
+    avatar.lastPos.copy(girl.root.position);
+    avatar.vel.lerp(vA, 1 - Math.exp(-dt * 5));
+    const sp = Math.min(avatar.vel.length(), 3.2);
+    for (const s of avatar.springs) {
+      vB.copy(s.dir).multiplyScalar(s.g);
+      if (sp > 0.05) vB.addScaledVector(avatar.vel, -s.wind * sp / avatar.vel.length());
+      const p = vB.length();
+      s.j.settings.gravityPower = p;
+      if (p > 1e-5) s.j.settings.gravityDir.copy(vB).divideScalar(p);
+    }
+    // springs step at a fixed 60 Hz so the hair behaves the same on 30, 60 and 144 Hz screens
+    avatar.acc = Math.min(avatar.acc + dt, 4 / 60);
+    let steps = 0;
+    while (avatar.acc >= 1 / 60) { avatar.acc -= 1 / 60; vrm.update(1 / 60); steps++; }
+    if (!steps) vrm.update(0);
     // umbrella and drinks sit in the avatar's hands
     girl.root.updateMatrixWorld(true);
     const place = (s, obj) => {
